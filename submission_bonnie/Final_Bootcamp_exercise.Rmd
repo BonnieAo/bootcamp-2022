@@ -1,0 +1,86 @@
+---
+title: "Final Bootcamp Exercises"
+author: "Ziqiao Ao"
+date: "2022-09-19"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## 1. Data Import
+
+Read the data files nys_schools.csv and nys_acs.csv into R. These data come from two different sources.
+
+```{r data_imports}
+
+schools <- read_csv(here::here("Desktop/Resources/MSiA_bootcamp/bootcamp-2022/data/nys_schools.csv"))
+counties <- read_csv(here::here("Desktop/Resources/MSiA_bootcamp/bootcamp-2022/data/nys_acs.csv"))
+
+library(skimr)
+skim_without_charts(schools)
+skim_without_charts(counties)
+```
+
+## 2. Data Cleaning
+
+```{r data_imports}
+library(dplyr)
+schools1 <- schools %>%
+  mutate(	total_enroll = na_if(	total_enroll, -99)) %>%
+  mutate(	per_free_lunch = na_if(	per_free_lunch, -99)) %>%
+  mutate(	per_reduced_lunch = na_if(	per_reduced_lunch, -99)) %>%
+  mutate(	per_lep = na_if(	per_lep, -99)) %>%
+  mutate(	mean_ela_score = na_if(	mean_ela_score, -99)) %>%
+  mutate(	mean_math_score = na_if(	mean_math_score, -99))
+
+# Replace the -99 with NA
+schools1 <- schools %>%
+   mutate(across(where(is.numeric), ~na_if(., -99))) %>%
+
+skim(schools1)
+skim_without_charts(counties)
+
+# Create categorical column
+counties1<- counties %>%
+  mutate( group = case_when(median_household_income < quantile(median_household_income,0.25) ~ "low",
+                      between(median_household_income, quantile(median_household_income, 0.25), quantile(median_household_income, 0.75))~"med",
+                      TRUE ~ "high")
+           )
+
+# Make calculation manually
+scores_std = schools_clean %>%
+              select(year, contains("score")) %>%
+              group_by(year) %>%
+              summarize(ela_mean = mean(mean_ela_score, na.rm=TRUE),
+                        math_mean = mean(mean_math_score, na.rm=TRUE),
+                        ela_sd = sd(mean_ela_score, na.rm=TRUE),
+                        math_sd = sd(mean_math_score, na.rm=TRUE))
+
+# Create z-score columns
+schools_all = inner_join(schools_clean, scores_std, by="year")
+schools_all = mutate(schools_all,
+                     ela_z_score = (mean_ela_score-ela_mean)/ela_sd,
+                     math_z_score = (mean_math_score-math_mean)/math_sd)
+
+# Check results
+View(schools_all)
+View(filter(schools_all, year==2017))
+
+total_df <- left_join(schools1,counties1, by=c("year","county_name")) %>%
+          drop_na()
+skim_without_charts(total_df)
+```
+
+## 2. Data Visualization
+
+```{r data_imports}
+library(ggplot2)
+
+total_df %>%
+  filter(year == "2016") %>%
+  ggplot(aes(x=group, y=mean_math_score),) + 
+  geom_boxplot(notch=TRUE,fill='#A4A4A4', color="black")
+```
+
